@@ -1,6 +1,7 @@
-use pinocchio::{account_info::AccountInfo, program_error::ProgramError, pubkey::find_program_address};
+use pinocchio::{account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError, pubkey::find_program_address};
+use pinocchio_system::instructions::Transfer;
 
-
+use core::mem::size_of;
 
 pub struct DepositAccounts<'a>{
     pub owner: &'a AccountInfo,
@@ -18,7 +19,7 @@ impl<'a> TryFrom<&'a [AccountInfo]> for DepositAccounts<'a>{
             return Err(ProgramError::InvalidAccountOwner);
         }
         
-        if vault.is_owned_by(&pinocchio_system::ID){
+        if !vault.is_owned_by(&pinocchio_system::ID){
             return Err(ProgramError::InvalidAccountOwner);
         }
         
@@ -32,5 +33,56 @@ impl<'a> TryFrom<&'a [AccountInfo]> for DepositAccounts<'a>{
         }
         
         Ok(Self { owner, vault })
+    }
+}
+
+pub struct DepositInstructionData{
+    pub amount: u64,
+}
+
+impl <'a> TryFrom<&'a [u8]> for DepositInstructionData{
+    type Error = ProgramError;
+    
+    fn try_from(data: &'a [u8]) -> Result<Self, Self::Error> {
+        if data.len() != size_of::<u64>() {
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        
+        let amount = u64::from_le_bytes(data.try_into().unwrap());
+        
+        if amount.eq(&0){
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        
+        Ok(Self { amount })
+    }
+}
+
+pub struct Deposit<'a>{
+    pub accounts: DepositAccounts<'a>,
+    pub instruction_data: DepositInstructionData,
+}
+
+impl <'a> TryFrom<(&'a [u8], &'a [AccountInfo])> for Deposit<'a> {
+    type Error = ProgramError;
+    
+    fn try_from((data, accounts): (&'a [u8], &'a [AccountInfo])) -> Result<Self, Self::Error> {
+        let accounts = DepositAccounts::try_from(accounts)?;
+        let instruction_data = DepositInstructionData::try_from(data)?;
+        Ok(Self { accounts, instruction_data })
+    }
+}
+
+impl<'a> Deposit<'a> {
+    pub const DISCRIMINATOR: &'a u8 = &0;
+    
+    pub fn process(&mut self) -> ProgramResult {
+        Transfer{
+            from: self.accounts.owner,
+            to: self.accounts.vault,
+            lamports: self.instruction_data.amount
+        }.invoke()?;
+        
+        Ok(())
     }
 }
