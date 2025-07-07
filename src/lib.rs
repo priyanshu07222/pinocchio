@@ -3,6 +3,10 @@ use pinocchio::{account_info::AccountInfo, entrypoint, nostd_panic_handler, prog
 entrypoint!(process_instruction);
 nostd_panic_handler!();
 
+pub mod instructions;
+pub use instructions::*;
+
+
 pub const ID: Pubkey = [
     0x0f, 0x1e, 0x6b, 0x14, 0x21, 0xc0, 0x4a, 0x07,
     0x04, 0x31, 0x26, 0x5c, 0x19, 0xc5, 0xbb, 0xee,
